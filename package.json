@@ -1,0 +1,19 @@
+{
+  "name": "river",
+  "version": "0.5.1",
+  "description": "Tools to debug a river of data.",
+  "main": "river.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/briancsparks/river.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/briancsparks/river/issues"
+  },
+  "homepage": "https://github.com/briancsparks/river#readme"
+}
