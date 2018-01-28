@@ -150,12 +150,6 @@ const main = function() {
 };
 
 
-//...
-lib.myFavoriteFunction = function(argv, context, callback) {
-  return callback();
-};
-
-
 
 
 _.each(lib, (value, key) => {
