@@ -54,28 +54,28 @@ const main = function() {
       const clientBlocking   = redis.duplicate();
 
       sg.until(function(again, last, count, elapsed) {
-        console.log('until: ', count, elapsed);
+        //console.log('until: ', count, elapsed);
 
         // Only try for so long
         if (elapsed > 1000 * 60 * 5) { return last(); }
 
         // On the 2nd, and futher times through the loop, dont let the other timer expire
         if (count > 1) {
-          console.log('Saving '+signalName+' from timeout');
+          //console.log('Saving '+signalName+' from timeout');
           redis.expire(signalName, 60, (err, data) => {});
         }
 
         return clientBlocking.brpop(riverName, 45, function(err, data) {
-          console.log('BRPOP return: ', err, data);
+
           if (err)   { return sg._500(req, res, err); }
           if (!data) {
-            console.log('BRPOP timeout for '+riverName);
+            //console.log('BRPOP timeout for '+riverName);
             return again(100); /*timeout*/
           }
 
           // When something shows up, send it to the client
           redis.srem(signalName, riverName, (err, sremData) => {
-            console.log('SREM('+signalName+','+riverName+')', err, sremData);
+            //console.log('SREM('+signalName+','+riverName+')', err, sremData);
             return sg._200(req, res, data);
           });
         });
@@ -100,8 +100,8 @@ const main = function() {
         console.error(err, 'at res-on-err');
       });
 
-      console.log(req.url, req.headers, params, splats, query);
-      //return sg._500(req, res);
+      // ----------------------------- No callbacks, or responding on req/res --------------------------
+      // -----------------------------------------------------------------------------------------------
     });
 
     function errExit(msg, statusCode) {
