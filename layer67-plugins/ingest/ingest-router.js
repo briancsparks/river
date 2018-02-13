@@ -11,7 +11,6 @@ const http                    = require('http');
 const urlLib                  = require('url');
 const request                 = sg.extlibs.superagent;
 
-const myUpload                = require('./routes/upload');
 
 const ARGV                    = sg.ARGV();
 const argvGet                 = sg.argvGet;
@@ -20,7 +19,9 @@ const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
 const unhandled               = unhandledRoutes.unhandled;
 
-const packageName             = 'ntl';
+var   routeHandlers           = require('./routes/upload');
+
+const packageName             = 'river';
 
 const main = function() {
 
@@ -29,79 +30,67 @@ const main = function() {
 
   if (!port) {
     console.log('Need --port=');
-    process.exit(2);
+    return process.exit(2);
   }
-
-  // What did the routes sign me up for?
-  const routeNames  = _.keys(myUpload);
-  const urlRoutes   = _.map(routeNames, n => `/${packageName}/${n}`);
 
   const router = Router();
 
-  var handlers = {};
-
-  _.each(myUpload, function(fn, name) {
-    handlers[name] = {
-      fn        : fn,
-      urlRoute  : `/ntl/${name}`
-    };
+  // Add the loaded handlers to the route map
+  _.each(routeHandlers, (handler, name) => {
+    router.addRoute(`/${packageName}/xapi/v1/${name}`, handler);
   });
 
-  _.each(handlers, function(handler, name) {
-    router.addRoute(handler.urlRoute, handler.fn);
-  });
+  // ---------- Node.js Server ----------
 
-  // Start the server
+  // The typical Node.js server
+  const server = http.createServer(function(req, res) {
 
-  return sg.__run([function(next) {
-    return request.get('http://169.254.169.254/latest/meta-data/local-ipv4').end((err, result) => {
-      console.log(err, result.text, result.ok, result.body);
-      if (sg.ok(err, result, result.text)) {
-        ip = result.text;
+    // We are a long-poll server
+    req.setTimeout(0);
+    res.setTimeout(0);
+
+    const url       = urlLib.parse(req.url, true);
+    const pathname  = url.pathname.toLowerCase();
+
+    return sg.getBody(req, function(err) {
+      if (err) { return unhandled(req, res); }
+
+      // Collect all the interesting items
+      const all = sg._extend(url.query, req.bodyJson || {});
+
+      const match = router.match(pathname);
+      if (match && _.isFunction(match.fn)) {
+        match.fn(req, res, match.params, match.splats, url.query);
+        return;
       }
-      return next();
+
+      return unhandled(req, res);
     });
-  }, function(next) {
-    const server = http.createServer(function(req, res) {
+  });
 
-      // We are a long-poll server
-      req.setTimeout(0);
-      res.setTimeout(0);
+  // Start listening
+  return request.get('http://169.254.169.254/latest/meta-data/local-ipv4').end((err, result) => {
+    if (sg.ok(err, result, result.text)) {
+      ip = result.text;
+    }
 
-      const url       = urlLib.parse(req.url, true);
-      const pathname  = url.pathname.toLowerCase();
-
-      return sg.getBody(req, function(err) {
-        if (err) { return unhandled(req, res); }
-
-        // Collect all the interesting items
-        const all = sg._extend(url.query, req.bodyJson || {});
-
-        const match = router.match(pathname);
-        if (match && _.isFunction(match.fn)) {
-          match.fn(req, res, match.params, match.splats, url.query);
-          return;
-        }
-
-        return unhandled(req, res);
-      });
-    });
-
-    server.listen(port, ip, function() {
+    return server.listen(port, ip, function() {
       console.log(`Listening on ${ip}:${port}`);
       next();
 
       tell();
       function tell() {
         setTimeout(tell, 15 * 1000);
-        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30, function(err) {
-          redisUtils.tellService(`/${packageName}/xapi/v1`, `http://${ip}:${port}`, 30, function(err) {
-          });
+
+        // Register to handle /river
+        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
+
+        // Register to handle /river/xapi/v1
+        redisUtils.tellService(`/${packageName}/xapi/v1`, `http://${ip}:${port}`, 30000, function(err) {
+        });
         });
       };
     });
-
-  }], function done() {
   });
 };
 

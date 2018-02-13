@@ -1,9 +1,8 @@
 
 /**
  *
+ *  The Node.js server for the river-feed service.
  *
- * TODO: It is hard to keep the connections coherent (between both Redis and Node). Of
- *       course it is, but gotta make sure no data is lost.
  */
 const sg                      = require('sgsg');
 const _                       = sg._;
@@ -12,19 +11,14 @@ const Router                  = require('routes');
 const redisUtils              = require('../../lib/redis-utils');
 const urlLib                  = require('url');
 const request                 = sg.extlibs.superagent;
-//const redisLib                = require('redis');
 
 const ARGV                    = sg.ARGV();
 const argvGet                 = sg.argvGet;
 const argvExtract             = sg.argvExtract;
 const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
-//const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
-//const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
 
 var   routeHandlers           = require('./routes/feed');
-
-//const redis                   = redisLib.createClient(redisPort, redisHost);
 
 const packageName             = 'river';
 
@@ -34,9 +28,14 @@ const main = function() {
   var   ip    = ARGV.ip       || '127.0.0.1';
   const port  = ARGV.port;
 
+  if (!port) {
+    console.log('Need --port=');
+    return process.exit(2);
+  }
+
   const router = Router();
 
-  // Add the above handler to the URL map for the module.
+  // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
     router.addRoute(`/${packageName}/xapi/v1/${name}`, handler);
   });
@@ -72,7 +71,7 @@ const main = function() {
       ip = result.text;
     }
 
-    server.listen(port, ip, function() {
+    return server.listen(port, ip, function() {
       console.log(`Listening on ${ip}:${port}`);
 
       tell();
