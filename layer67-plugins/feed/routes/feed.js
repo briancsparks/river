@@ -1,9 +1,28 @@
 
 /**
  *
+ *  Handle the river data feed.
  *
- * TODO: It is hard to keep the connections coherent (between both Redis and Node). Of
- *       course it is, but gotta make sure no data is lost.
+ *  When a request comes in, we fetch data from Redis for it. If no
+ *  data is available, we block (long-held connection) until data is
+ *  available. (Of course, we do not wait forever.)
+ *
+ *  1. Handle the Node.js req/res, and get the HTTP body.
+ *  2. Read from redis: 'river:feed:clientId' -- this is a blocking call.
+ *  3. Write a 'signal' key into Redis so other clients know to send their data
+ *     to our list.
+ *
+ *  *  Handle the client disconnecting.
+ *
+ *  To manual test, use curl from across the interwebs:
+ *
+ *      [sa]curl -sS 'https://rriver.mobilewebassist.net/river/xapi/v1/feed?clientId=asdf&watch=bsdf&expectJson=1'
+ *
+ *  Then, using redis-cli, send data:
+ *
+ *      redis-cli LPUSH river:feed:asdf '{"a":42}'
+ *
+ *
  */
 const sg                      = require('sgsg');
 const _                       = sg._;
@@ -30,7 +49,8 @@ var   lib = {};
  */
 lib.feed = function(req, res, params, splats, query) {
   const url = urlLib.parse(req.url, true);
-  var   done = false;
+
+  var   clientRequestIsInvalid;
 
   return sg.getBody(req, function(err) {
     const all = sg._extend(req.bodyJson || {}, url.query || {}, params ||{});
@@ -53,8 +73,17 @@ lib.feed = function(req, res, params, splats, query) {
     // We must get a duplicate of the redis client object, because we are about to block.
     const clientBlocking   = redis.duplicate();
 
+    const start = _.now();
+
     // If we time-out, we come back here and go around again.
     sg.until(function(again, last, count, elapsed) {
+
+      // -----------------------------------------------------------------------------------------------------
+      // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
+      //
+
+      // Make sure the client request is still valid
+      if (clientRequestIsInvalid)         { return exitForBrokenRequest(); }
 
       // But only try for so long
       if (elapsed > 1000 * 60 * 5) { return last(); }
@@ -72,23 +101,37 @@ lib.feed = function(req, res, params, splats, query) {
       // This is the blocking call to BRPOP
       return clientBlocking.brpop(riverName, 45, function(err, data) {
 
+        // -----------------------------------------------------------------------------------------------------
+        // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
+        //
+
+        // Make sure the client request is still valid
+        if (clientRequestIsInvalid)         { return exitForBrokenRequest(); }
+
         // Was there an error, or did we timeout?
         if (err)   { return sg._500(req, res, err); }
         if (!data) {
           return again(100); /*timeout*/
         }
 
-        // We didnt fail, or timeout, so we got some data... Send it to the client
+        // We didnt fail, or timeout, so we got some data... Send it to the client; data === [ riverName, data_from_other ]
+        var   [ redisListName, payload ] = data;
+
+        if (all.expectJson || all.json) {
+          payload = sg.safeJSONParseQuiet(payload) || payload;
+        }
+
+        const result = { [_.last(redisListName.split(':'))] : payload };
 
         // But first, we will remove our id from Redis, so others are not confused.
         redis.srem(signalName, riverName, (err, sremData) => {
-          return sg._200(req, res, data);
+          return sg._200(req, res, result);
         });
       });
 
     }, function done() {
-      // Should not get here
-      return sg._200(req, res);
+      // We only get here when the sg.until:elapsed is > 5min
+      return sg._200(req, res, {timeout: (_.now() - start)});
     });
 
     // Write a key on Redis so the other client knows where to send the data
@@ -98,14 +141,25 @@ lib.feed = function(req, res, params, splats, query) {
     });
 
     // Error handler
-    req.on('error', (err) => {
-      console.error(err, 'at req-on-err');
+    req.on('close', () => {
+      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'close';
+      //console.error('at req-on-close');
     });
 
-    // Error handler
-    res.on('error', (err) => {
-      console.error(err, 'at res-on-err');
+    req.on('aborted', () => {
+      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'aborted';
+      //console.error('at req-on-aborted');
     });
+
+    req.on('end', () => {
+      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'end';
+      //console.log('request normal end');
+    });
+
+    function exitForBrokenRequest() {
+      console.error('Exiting after broken client request: '+clientRequestIsInvalid);
+      return sg._400(req, res, {clientReq: clientRequestIsInvalid});
+    }
 
     // ----------------------------- No callbacks, or responding on req/res --------------------------
     // -----------------------------------------------------------------------------------------------
