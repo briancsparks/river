@@ -9,8 +9,9 @@ const sg                      = require('sgsg');
 const _                       = sg._;
 const http                    = require('http');
 const Router                  = require('routes');
-const redisUtils              = require('./lib/redis-utils');
+const redisUtils              = require('../../lib/redis-utils');
 const urlLib                  = require('url');
+const request                 = sg.extlibs.superagent;
 //const redisLib                = require('redis');
 
 const ARGV                    = sg.ARGV();
@@ -79,10 +80,10 @@ const main = function() {
         setTimeout(tell, 15 * 1000);
 
         // Register to handle /river
-        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30, function(err) {
+        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
 
         // Register to handle /river/xapi/v1
-        redisUtils.tellService(`/${packageName}/xapi/v1`, `http://${ip}:${port}`, 30, function(err) {
+        redisUtils.tellService(`/${packageName}/xapi/v1`, `http://${ip}:${port}`, 30000, function(err) {
         });
         });
       };
@@ -92,7 +93,5 @@ const main = function() {
 };
 
 // Call main
-if (sg.callMain(ARGV, __filename)) {
-  main();
-}
+main();
 

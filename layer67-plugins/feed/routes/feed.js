@@ -44,7 +44,7 @@ lib.feed = function(req, res, params, splats, query) {
     const watchClientId = all.watchClientId || all.watch;
 
     if (!clientId)          { return errExit('Must provide your clientId', 400); }
-    if (!watchClientId)     { return errExit('Must provide your clientId', 400); }
+    if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
 
     // The Redis keys are generated from the client IDs
     const signalName   = `river:feedsignal:${watchClientId}`;
