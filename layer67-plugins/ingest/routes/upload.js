@@ -6,14 +6,21 @@ const sg                      = require('sgsg');
 const _                       = sg._;
 const AWS                     = require('aws-sdk');
 const telemetryLib            = require('../../../lib/telemetry');
+const path                    = require('path');
 const crypto                  = require('crypto');
 const formidable              = require('formidable');
+const redisLib                = require('redis');
 
 const ARGV                    = sg.ARGV();
 const argvGet                 = sg.argvGet;
 const argvExtract             = sg.argvExtract;
 const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
+const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
+const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
+
+const redis                   = redisLib.createClient(redisPort, redisHost);
+
 const uploadDir               = path.join('/tmp', 'river', 'upload');
 
 const s3                      = new AWS.S3();
@@ -24,36 +31,52 @@ var lib = {};
  *  Quickly ingests the JSON.
  */
 lib.ingest = function(req, res, params, splats, query) {
-  console.log(req.url, req.headers, params, splats, query);
+  // console.log(req.url, req.headers, params, splats, query);
 
-  var   result      = {};
-  const Bucket      = bucketName();
-  var   body        = telemetryLib.normalizeBody(req.bodyJson || {}, params || {}, query || {});
+  return sg.getBody(req, function(err) {
+    if (!sg.ok(err))  { return sg._400(req, res); }
 
-  body.payload      = body.payload || [];
+    var   result      = {};
+    const Bucket      = bucketName();
+    var   body        = telemetryLib.normalizeBody(req.bodyJson || {}, params || {}, query || {});
 
-  if (!body.sessionId) {
-    return sg._400(req, res, {ok:false}, 'Must provide sessionId');
-  }
+    body.payload      = body.payload || [];
 
-  if (req.headers['x-real-ip']) {
-    body = sg._extend({x_real_ip: req.headers['x-real-ip']}, body);
-  }
+    if (!body.sessionId) {
+      return sg._400(req, res, {ok:false}, 'Must provide sessionId');
+    }
 
-  const telemetry   = JSON.stringify(body);
-  const clientId    = body.clientId;
+    if (req.headers['x-real-ip']) {
+      body = sg._extend({x_real_ip: req.headers['x-real-ip']}, body);
+    }
 
-  const s3Params    = s3PutObjectParams(clientId, body.sessionId, Bucket, telemetry);
-  return s3.putObject(s3Params, function(err, data) {
+    const telemetry   = JSON.stringify(body);
+    const clientId    = body.clientId;
 
-    // Delay and push to Redis (feed) -- TODO
-    sg.setTimeout(10, function() {
+    const s3Params    = s3PutObjectParams(clientId, body.sessionId, Bucket, telemetry);
+    return s3.putObject(s3Params, function(err, data) {
+      if (!sg.ok(err, data))    { return sg._500(req, res, err, 'Failed to s3.putObject'); }
+
+      // Delay and push to Redis (feed) -- redis-cli LPUSH river:feed:asdf '{"payload":[{"a":42}]}'
+      sg.setTimeout(10, function() {
+
+        // The Redis keys are generated from the client IDs
+        const signalName   = `river:feedsignal:${clientId}`;
+
+        return redis.smembers(signalName, (err, destKeys) => {
+          if (!sg.ok(err, destKeys))   { return; }
+
+          return sg.__each(destKeys, (destKey) => {
+            return redis.lpush(destKey, s3Params.Body, function(err, receipt) {
+              console.log('LPUSH ', signalName, destKey, err, receipt);
+            });
+          }, function done() {
+          });
+        });
+      });
+
+      return sg._200(req, res, {ok:true, count: body.payload.length});
     });
-
-    if (!sg.ok(err, data))    { return sg._500(req, res, err, 'Failed to s3.putObject'); }
-
-    return sg._200(req, res, {ok:true, count: body.payload.length});
-
   });
 };
 
@@ -65,7 +88,7 @@ lib.ingest = function(req, res, params, splats, query) {
  *    /uploadBlob
  *
  */
-lib.uploadBlob = function(req, res, params, splats, query) {
+lib.ingestBlob = function(req, res, params, splats, query) {
   var   result = {};
   var   code, msg;
 

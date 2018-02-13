@@ -3,6 +3,10 @@
  *
  *  The Node.js server for the river-feed service.
  *
+ *  Start like this:
+ *
+ *      sshix $ip "cd ~/dev/river/layer67-plugins/feed && pm2 start feed-router.js --name feed -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
+ *
  */
 const sg                      = require('sgsg');
 const _                       = sg._;
@@ -37,7 +41,10 @@ const main = function() {
 
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
-    router.addRoute(`/${packageName}/xapi/v1/${name}`, handler);
+    const route = `/${packageName}/xapi/v1/${name}`;
+    console.log('Handling route: '+route);
+
+    router.addRoute(route, handler);
   });
 
   // ---------- Node.js Server ----------
@@ -78,12 +85,14 @@ const main = function() {
       function tell() {
         setTimeout(tell, 15 * 1000);
 
-        // Register to handle /river
-        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
+//        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
+//        });
 
-        // Register to handle /river/xapi/v1
-        redisUtils.tellService(`/${packageName}/xapi/v1`, `http://${ip}:${port}`, 30000, function(err) {
-        });
+        // Register to handle /river
+        _.each(routeHandlers, (handler, name) => {
+          // Register to handle /river/xapi/v1
+          redisUtils.tellService(`/${packageName}/xapi/v1/${name}`, `http://${ip}:${port}`, 30000, function(err) {
+          });
         });
       };
     });
