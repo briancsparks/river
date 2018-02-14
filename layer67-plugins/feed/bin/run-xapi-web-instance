@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+eval "$(cli-shezargs $@)"
+
+# Start the web tier instance with layer67
+run-fqdn-web-instance --stack=cluster --fqdn=rriver.mobilewebassist.net --client-certs --delay-finishing
+ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
+
+# Deploy our code onto the new instance
+zoom-run --ip=${ip} --label=feedxapi --script="${scripts_dir}/on-instance/deploy-xapi-web-instance"
+
+run-final-web-instance-start-tasks --fqdn=rriver.mobilewebassist.net --ip=${ip}
+
