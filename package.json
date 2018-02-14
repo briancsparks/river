@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/briancsparks/river#readme",
   "dependencies": {
+    "aws-sdk": "^2.194.0",
+    "formidable": "^1.1.1",
     "redis": "^2.8.0",
     "routes": "^2.1.0",
     "sgsg": "^0.9.48"
