@@ -1,0 +1,20 @@
+#!/bin/bash -e
+
+#
+# This runs on the instance
+#
+
+eval "$(cli-shezargs $@)"
+
+# -----------------------------------------------------------------------------------
+# Install and run our `feed` service
+#
+
+# git it
+cd ~/dev && git clone https://github.com/briancsparks/river.git
+cd river && npm install --production
+
+# Get the feed server up and running
+cd layer67-plugins/feed
+pm2 start feed-router.js --name feed -- --port=3001
+

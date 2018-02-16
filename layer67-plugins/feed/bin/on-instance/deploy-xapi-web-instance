@@ -1,6 +1,18 @@
 #!/bin/bash -e
 
+#
+# This runs on the instance
+#
+
 eval "$(cli-shezargs $@)"
+
+# -----------------------------------------------------------------------------------
+# Start an xapi router from the layer67 code.
+#
+#   Note: This is only required if we have to run our own xapi routing. If we
+#         are running on a stack that has general xapi routing (on the stacks web
+#         tier, for example), this is not needed
+#
 
 # Get the port we should listen on
 port="$(egrep '#.*CONFIG_JSON' /etc/nginx/sites-enabled/rriver.mobilewebassist.net.conf | sed 's/^[^{[]*//g' | jq -r '.routerPort')"
@@ -8,11 +20,4 @@ port="$(egrep '#.*CONFIG_JSON' /etc/nginx/sites-enabled/rriver.mobilewebassist.n
 # Start layer67 xapi server
 cd ~/dev/layer67/layer67-plugins/xapi && pm2 start xapi-router.js --name xapi -- --port=${port}
 
-# Get our project
-cd ~/dev && git clone https://github.com/briancsparks/river.git
-cd river && npm install --production
-
-# Get the feed server up and running
-cd layer67-plugins/feed
-pm2 start feed-router.js --name feed -- --port=3001
 
