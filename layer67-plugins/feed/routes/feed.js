@@ -16,7 +16,7 @@
  *
  *  To manual test, use curl from across the interwebs:
  *
- *      [sa]curl -sS 'https://rriver.mobilewebassist.net/river/xapi/v1/feed?clientId=asdf&watch=bsdf&expectJson=1'
+ *      [sa]curl -sS 'https://rriver.mobilewebassist.net/ntl/xapi/v1/feed?clientId=asdf&watch=bsdf&expectJson=1'
  *
  *  Then, using redis-cli, send data:
  *

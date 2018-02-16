@@ -26,7 +26,7 @@ const unhandled               = unhandledRoutes.unhandled;
 
 var   routeHandlers           = require('./routes/upload');
 
-const packageName             = 'river';
+const packageName             = 'ntl';
 
 const main = function() {
 
@@ -89,12 +89,12 @@ const main = function() {
       function tell() {
         setTimeout(tell, 15 * 1000);
 
+        // Register to handle /ntl
 //        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
 //        });
 
-        // Register to handle /river
         _.each(routeHandlers, (handler, name) => {
-          // Register to handle /river/xapi/v1/{name}
+          // Register to handle /ntl/xapi/v1/{name}
           redisUtils.tellService(`/${packageName}/xapi/v1/${name}`, `http://${ip}:${port}`, 30000, function(err) {
           });
         });
