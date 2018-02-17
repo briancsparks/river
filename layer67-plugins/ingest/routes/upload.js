@@ -52,8 +52,9 @@ lib.ingest = function(req, res, params, splats, query) {
 
     const telemetry   = JSON.stringify(body);
     const clientId    = body.clientId;
+    const dataType    = body.dataType   || 'telemetry';
 
-    const s3Params    = s3PutObjectParams(clientId, body.sessionId, Bucket, telemetry);
+    const s3Params    = s3PutObjectParams(clientId, body.sessionId, dataType, Bucket, telemetry);
     return s3.putObject(s3Params, function(err, data) {
       if (!sg.ok(err, data))    { return sg._500(req, res, err, 'Failed to s3.putObject'); }
 
@@ -149,7 +150,7 @@ lib.ingestBlob = function(req, res, params, splats, query) {
         body.payload.unshift(item);
 
         // Add a JSON object to reference the uploaded
-        const s3Params  = s3PutObjectParams(body.clientId, body.sessionId, Bucket, JSON.stringify(body));
+        const s3Params  = s3PutObjectParams(body.clientId, body.sessionId, 'telemetry', Bucket, JSON.stringify(body));
         return s3.putObject(s3Params, (err, data) => {
           console.log(`telemetry added ${body.payload.length} to S3 (${shortenKey(s3Params.Key)}):`, err, data);
         });
@@ -255,7 +256,7 @@ function s3PutObjectParamsFile(clientId, sessionId, Bucket, tmpBlobFilename, fil
 /**
  *  Returns the `params` input object for the s3.putObject() API, for a JSON file.
  */
-function s3PutObjectParams(clientId, sessionId, Bucket, payload) {
+function s3PutObjectParams(clientId, sessionId, dataType, Bucket, payload) {
 
   const Body      = _.isString(payload) ? payload : JSON.stringify(payload);
   const keyDir    = s3Key(clientId, sessionId);
@@ -263,7 +264,7 @@ function s3PutObjectParams(clientId, sessionId, Bucket, payload) {
 
   shasum.update(Body);
 
-  const Key       = [keyDir, shasum.digest('hex')].join('/') + '.json';
+  const Key       = [keyDir, dataType, shasum.digest('hex')].join('/') + '.json';
   const params    = {
     Body,
     Bucket,

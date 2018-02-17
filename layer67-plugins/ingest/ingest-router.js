@@ -42,7 +42,7 @@ const main = function() {
 
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
-    const route = `/${packageName}/xapi/v1/${name}`;
+    const route = `/${packageName}/api/v1/${name}`;
     console.log('ingest -- handling route: '+route);
 
     router.addRoute(route, handler);
@@ -94,8 +94,8 @@ const main = function() {
 //        });
 
         _.each(routeHandlers, (handler, name) => {
-          // Register to handle /ntl/xapi/v1/{name}
-          redisUtils.tellService(`/${packageName}/xapi/v1/${name}`, `http://${ip}:${port}`, 30000, function(err) {
+          // Register to handle /ntl/api/v1/{name}
+          redisUtils.tellService(`/${packageName}/api/v1/${name}`, `http://${ip}:${port}`, 30000, function(err) {
           });
         });
       };
