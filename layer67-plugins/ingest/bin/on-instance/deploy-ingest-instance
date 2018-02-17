@@ -16,5 +16,5 @@ cd river && npm install --production
 
 # Get the ingest server up and running
 cd layer67-plugins/ingest
-pm2 start ingest-router.js --name ingest -- --port=3002
+pm2 start ingest-router.js --name ingest -- --port=3002 --color=${color} --stack=${stack}
 
