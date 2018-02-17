@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+eval "$(cli-shezargs $@)"
+
+# Start an app instance with layer67
+run-app-instance --stack=test --delay-finishing
+ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
+
+# Deploy our code onto the new instance
+zoom-run --ip=${ip} --label=ingest --script="${scripts_dir}/on-instance/deploy-ingest-instance"
+
+run-final-app-instance-start-tasks --ip=${ip}
+

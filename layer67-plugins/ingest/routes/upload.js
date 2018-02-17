@@ -85,7 +85,7 @@ lib.ingest = function(req, res, params, splats, query) {
 /**
  *  Handles uploaded binary files.
  *
- *    /uploadBlob
+ *    /ingestBlob
  *
  */
 lib.ingestBlob = function(req, res, params, splats, query) {

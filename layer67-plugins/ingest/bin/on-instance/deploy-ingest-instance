@@ -1,0 +1,20 @@
+#!/bin/bash -e
+
+#
+# This runs on the instance
+#
+
+eval "$(cli-shezargs $@)"
+
+# -----------------------------------------------------------------------------------
+# Install and run our `ingest` service
+#
+
+# git it
+cd ~/dev && git clone https://github.com/briancsparks/river.git
+cd river && npm install --production
+
+# Get the ingest server up and running
+cd layer67-plugins/ingest
+pm2 start ingest-router.js --name ingest -- --port=3002
+
