@@ -23,6 +23,8 @@ const argvExtract             = sg.argvExtract;
 const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
 const unhandled               = unhandledRoutes.unhandled;
+const color                   = ARGV.color;
+const stack                   = ARGV.stack;
 
 var   routeHandlers           = require('./routes/upload');
 
@@ -33,8 +35,8 @@ const main = function() {
   var   ip          = ARGV.ip       || '127.0.0.1';
   const port        = ARGV.port;
 
-  if (!port) {
-    console.log('Need --port=');
+  if (!port || !color || !stack) {
+    console.log('Need --port= and --color= and --stack=');
     return process.exit(2);
   }
 
@@ -42,7 +44,7 @@ const main = function() {
 
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
-    const route = `/${packageName}/api/v1/${name}`;
+    const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
     console.log('ingest -- handling route: '+route);
 
     router.addRoute(route, handler);
@@ -89,13 +91,13 @@ const main = function() {
       function tell() {
         setTimeout(tell, 15 * 1000);
 
-        // Register to handle /ntl
-//        redisUtils.tellService(`/${packageName}`, `http://${ip}:${port}`, 30000, function(err) {
-//        });
-
+        // Register to handle routes
         _.each(routeHandlers, (handler, name) => {
-          // Register to handle /ntl/api/v1/{name}
-          redisUtils.tellService(`/${packageName}/api/v1/${name}`, `http://${ip}:${port}`, 30000, function(err) {
+
+          // Register to handle /ntl/api/v1/[color]/{name}
+          const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
+
+          redisUtils.tellStackService(route, `http://${ip}:${port}`, 30000, stack, function(err) {
           });
         });
       };

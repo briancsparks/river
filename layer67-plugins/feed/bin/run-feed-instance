@@ -1,19 +1,22 @@
 #!/bin/bash -e
 
-stack="test"
+stack="cluster"
 
 eval "$(cli-shezargs $@)"
+
+[[ -z $color    ]] && die "Need --color="
+[[ -z $stack    ]] && die "Need --stack="
 
 if [[ $stack == prod ]]; then
   assumed_acct="pub"
 fi
 
 # Start an app instance with layer67
-run-app-instance --stack=cluster --delay-finishing
+run-app-instance --stack=${stack} --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
 instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceId')"
 
-${scripts_dir}/aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-feed-instance"
+aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-feed-instance" "Key=color,Value=${color}"
 
 # Deploy our code onto the new instance
 zoom-run --ip=${ip} --label=feed --script="${scripts_dir}/on-instance/deploy-feed-instance"
