@@ -36,6 +36,7 @@ lib.ingest = function(req, res, params, splats, query) {
   return sg.getBody(req, function(err) {
     if (!sg.ok(err))  { return sg._400(req, res); }
 
+    var   msg         = req.url;
     var   result      = {};
     const Bucket      = bucketName();
     var   body        = telemetryLib.normalizeBody(req.bodyJson || {}, params || {}, query || {});
@@ -69,13 +70,15 @@ lib.ingest = function(req, res, params, splats, query) {
 
           return sg.__each(destKeys, (destKey) => {
             return redis.lpush(destKey, s3Params.Body, function(err, receipt) {
-              console.log('LPUSH ', signalName, destKey, err, receipt);
+              //console.log('LPUSH ', signalName, destKey, err, receipt);
+              console.log(msg, 'LPUSH ', signalName, destKey);
             });
           }, function done() {
           });
         });
       });
 
+      console.log(msg+' OK, '+body.payload.length+' items');
       return sg._200(req, res, {ok:true, count: body.payload.length});
     });
   });
