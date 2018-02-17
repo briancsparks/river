@@ -1,10 +1,19 @@
 #!/bin/bash -e
 
+stack="test"
+
 eval "$(cli-shezargs $@)"
 
+if [[ $stack == prod ]]; then
+  assumed_acct="pub"
+fi
+
 # Start an app instance with layer67
-run-app-instance --stack=test --delay-finishing
+run-app-instance --stack=${stack} --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
+instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceId')"
+
+${scripts_dir}/aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-ingest-instance"
 
 # Deploy our code onto the new instance
 zoom-run --ip=${ip} --label=ingest --script="${scripts_dir}/on-instance/deploy-ingest-instance"
