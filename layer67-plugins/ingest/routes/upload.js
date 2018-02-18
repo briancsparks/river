@@ -18,6 +18,7 @@ const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
 const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
 const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
+const s3Key                   = telemetryLib.s3Key;
 
 const redis                   = redisLib.createClient(redisPort, redisHost);
 
@@ -38,7 +39,7 @@ lib.ingest = function(req, res, params, splats, query) {
 
     var   msg         = req.url;
     var   result      = {};
-    const Bucket      = bucketName();
+    const Bucket      = telemetryLib.bucketName();
     var   body        = telemetryLib.normalizeBody(req.bodyJson || {}, params || {}, query || {});
 
     body.payload      = body.payload || [];
@@ -131,7 +132,7 @@ lib.ingestBlob = function(req, res, params, splats, query) {
         return;
       }
 
-      const Bucket   = bucketName();
+      const Bucket   = telemetryLib.bucketName();
       if (!Bucket) {
         code = 404;
         msg  = `No bucket for ${body.projectId}`;
@@ -185,36 +186,36 @@ _.each(lib, (value, key) => {
   exports[key] = value;
 });
 
-/**
- *  What is the bucket name?
- *
- *  (They are different for the different accounts.)
- *
- */
-function bucketName() {
-  if (sg.isProduction()) {
-    return 'sa-telemetry-netlab-asis-prod';
-  }
-  return 'sa-telemetry-netlab-asis-test';
-}
-
-/**
- *  Computes the `Key` part of an s3 Bucket/Key pair.
- */
-function s3Key(clientId, sessionId) {
-  var   key = [];
-
-  if (sessionId.startsWith(clientId)) {
-    key = sessionId.split('-');
-  } else {
-    key = `${clientId}-${sessionId}`.split('-');
-  }
-
-  // Add first-3 as root
-  key.unshift(key[0].substr(0,3));
-
-  return key.join('/');
-}
+///**
+// *  What is the bucket name?
+// *
+// *  (They are different for the different accounts.)
+// *
+// */
+//function bucketName() {
+//  if (sg.isProduction()) {
+//    return 'sa-telemetry-netlab-asis-prod';
+//  }
+//  return 'sa-telemetry-netlab-asis-test';
+//}
+//
+///**
+// *  Computes the `Key` part of an s3 Bucket/Key pair.
+// */
+//function s3Key(clientId, sessionId) {
+//  var   key = [];
+//
+//  if (sessionId.startsWith(clientId)) {
+//    key = sessionId.split('-');
+//  } else {
+//    key = `${clientId}-${sessionId}`.split('-');
+//  }
+//
+//  // Add first-3 as root
+//  key.unshift(key[0].substr(0,3));
+//
+//  return key.join('/');
+//}
 
 /**
  *  Returns the Content-Type.
