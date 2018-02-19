@@ -1,11 +1,11 @@
 
 /**
  *
- *  The Node.js server for the river-ingestion services.
+ *  The Node.js server for the river-telemetry services.
  *
  *  Start like this:
  *
- *      sshix $ip "cd ~/dev/river/layer67-plugins/ingest && pm2 start ingest-router.js --name ingest -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
+ *      sshix $ip "cd ~/dev/river/layer67-plugins/telemetry && pm2 start telemetry-router.js --name telemetry -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
  */
 const sg                      = require('sgsg');
 const _                       = sg._;
@@ -44,7 +44,7 @@ const main = function() {
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
     const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
-    console.log('ingest -- handling route: '+route);
+    console.log('telemetry -- handling route: '+route);
 
     router.addRoute(route, handler);
   });

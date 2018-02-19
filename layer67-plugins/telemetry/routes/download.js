@@ -6,6 +6,7 @@ const sg                      = require('sgsg');
 const _                       = sg._;
 const raLib                   = sg.include('run-anywhere') || require('run-anywhere');
 const AWS                     = require('aws-sdk');
+const urlLib                  = require('url');
 const telemetryLib            = require('../../../lib/telemetry');
 const getTelemetryLib         = require('../../../lib/get-telemetry');
 
@@ -26,6 +27,8 @@ lib.download = function(req, res, params, splats, query) {
   // console.log(req.url, req.headers, params, splats, query);
 
   const getSessionTelemetry = raLib.contextify(getTelemetryLib.getSessionTelemetry, {req, res});
+
+  const url = urlLib.parse(req.url, true);
 
   return sg.getBody(req, function(err) {
 

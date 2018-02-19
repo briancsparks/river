@@ -1,11 +1,10 @@
 #!/bin/bash -e
 
-stack="test"
+stack="cluster"
 
 eval "$(cli-shezargs $@)"
 
 [[ -z $color    ]] && die "Need --color="
-[[ -z $stack    ]] && die "Need --stack="
 
 if [[ $stack == prod ]]; then
   assumed_acct="pub"
@@ -16,7 +15,7 @@ run-app-instance --stack=${stack} --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
 instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceId')"
 
-aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-telemetry-instance" "Key=color,Value=${color}"
+aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-telemetry-instance" "Key=color,Value=${color}" "Key=stack,Value=${stack}"
 
 # Deploy our code onto the new instance
 zoom-run --ip=${ip} --label=telemetry --script="${scripts_dir}/on-instance/deploy-telemetry-instance" --color=${color} --stack=${stack}
