@@ -27,8 +27,7 @@ lib.download = function(req, res, params, splats, query) {
   // console.log(req.url, req.headers, params, splats, query);
 
   const getSessionTelemetry = raLib.contextify(getTelemetryLib.getSessionTelemetry, {req, res});
-
-  const url = urlLib.parse(req.url, true);
+  const url                 = urlLib.parse(req.url, true);
 
   return sg.getBody(req, function(err) {
 
