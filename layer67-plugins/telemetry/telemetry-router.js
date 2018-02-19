@@ -31,7 +31,6 @@ var   routeHandlers           = require('./routes/download');
 const packageName             = 'ntl';
 
 const main = function() {
-
   var   ip          = ARGV.ip       || '127.0.0.1';
   const port        = ARGV.port;
 
@@ -44,7 +43,7 @@ const main = function() {
 
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
-    const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
+    const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
     console.log('ingest -- handling route: '+route);
 
     router.addRoute(route, handler);
@@ -94,8 +93,8 @@ const main = function() {
         // Register to handle routes
         _.each(routeHandlers, (handler, name) => {
 
-          // Register to handle /ntl/api/v1/[color]/{name}
-          const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
+          // Register to handle /ntl/xapi/v1/[color]/{name}
+          const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
 
           redisUtils.tellStackService(route, `http://${ip}:${port}`, 30000, stack, function(err) {
           });
