@@ -40,6 +40,7 @@ lib.download = function(req, res, params, splats, query) {
     return getSessionTelemetry(params, function(err, data) {
       if (!sg.ok(err, data))  { console.error(err); return sg._404(req, res); }
 
+      console.log(''+200+', '+(data.items && data.items.length)+' items for:'+req.url);
       return sg._200(req, res, data);
     });
   });

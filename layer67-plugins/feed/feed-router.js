@@ -44,7 +44,7 @@ const main = function() {
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
     const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
-    console.log('Handling route: '+route);
+    console.log('feed -- registering route: '+route);
 
     router.addRoute(route, handler);
   });

@@ -44,7 +44,7 @@ const main = function() {
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
     const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
-    console.log('telemetry -- handling route: '+route);
+    console.log('telemetry -- registering route: '+route);
 
     router.addRoute(route, handler);
   });
