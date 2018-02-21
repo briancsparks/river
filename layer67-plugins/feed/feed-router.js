@@ -43,7 +43,7 @@ const main = function() {
 
   // Add the loaded handlers to the route map
   _.each(routeHandlers, (handler, name) => {
-    const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
+    const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
     console.log('feed -- registering route: '+route);
 
     router.addRoute(route, handler);
@@ -90,8 +90,8 @@ const main = function() {
         // Register to handle routes
         _.each(routeHandlers, (handler, name) => {
 
-          // Register to handle /ntl/api/v1/[color]/{name}
-          const route = '/'+_.compact([packageName, 'api', 'v1', color, name]).join('/');
+          // Register to handle /ntl/xapi/v1/[color]/{name}
+          const route = '/'+_.compact([packageName, 'xapi', 'v1', color, name]).join('/');
 
           redisUtils.tellStackService(route, `http://${ip}:${port}`, 30000, stack, function(err) {
           });
