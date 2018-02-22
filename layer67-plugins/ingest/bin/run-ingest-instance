@@ -12,11 +12,11 @@ if [[ $stack == prod ]]; then
 fi
 
 # Start an app instance with layer67
-run-app-instance --stack=${stack} --delay-finishing
+run-app-instance --color=${color} --stack=${stack} --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
 instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceId')"
 
-aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-ingest-instance" "Key=color,Value=${color}" "Key=stack,Value=${stack}"
+aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-ingest-instance"
 
 # Deploy our code onto the new instance
 zoom-run --ip=${ip} --label=ingest --script="${scripts_dir}/on-instance/deploy-ingest-instance" --color=${color} --stack=${stack}
