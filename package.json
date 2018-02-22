@@ -20,6 +20,7 @@
     "aws-sdk": "^2.197.0",
     "formidable": "^1.1.1",
     "mongodb": "^3.0.2",
+    "pondjs": "^0.8.8",
     "redis": "^2.8.0",
     "routes": "^2.1.0",
     "run-anywhere": "^0.1.8",
