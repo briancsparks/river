@@ -26,14 +26,18 @@
  */
 const sg                      = require('sgsg');
 const _                       = sg._;
+const raLib                   = sg.include('run-anywhere') || require('run-anywhere');
 const urlLib                  = require('url');
 const redisLib                = require('redis');
+const getTelemetryLib         = require('../../../lib/get-telemetry');
 
 const ARGV                    = sg.ARGV();
 const argvGet                 = sg.argvGet;
 const argvExtract             = sg.argvExtract;
 const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
+const toTimeSeries            = getTelemetryLib.toTimeSeries;
+const accumulateResultFromBody= getTelemetryLib.accumulateResultFromBody;
 const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
 const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
 
@@ -48,7 +52,8 @@ var   lib = {};
  *
  */
 lib.feed = function(req, res, params, splats, query) {
-  const url = urlLib.parse(req.url, true);
+  const toTimeSeries        = raLib.contextify(getTelemetryLib.toTimeSeries, {req, res});
+  const url                 = urlLib.parse(req.url, true);
 
   var   clientRequestIsInvalid;
 
@@ -60,11 +65,15 @@ lib.feed = function(req, res, params, splats, query) {
     //
 
     // Get the clients ID, and the ID of who is being watched.
-    const clientId      = all.clientId;
-    const watchClientId = all.watchClientId || all.watch;
+    const clientId          = all.clientId;
+    const watchClientId     = all.watchClientId || all.watch;
 
     if (!clientId)          { return errExit('Must provide your clientId', 400); }
     if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
+
+    const dataTypeStr        = argvGet(all, 'data-types,data-type,type');
+    const dataTypes          = dataTypeStr ? sg.keyMirror(dataTypeStr) : null;
+    const asTimeSeries       = argvGet(all, 'as-time-series,timeseries');
 
     // The Redis keys are generated from the client IDs
     const signalName   = `river:feedsignal:${watchClientId}`;
@@ -91,7 +100,7 @@ lib.feed = function(req, res, params, splats, query) {
       // On the 2nd, and futher times through the loop, dont let the other timer expire
       if (count > 1) {
         //console.log('Saving '+signalName+' from timeout');
-        redis.expire(signalName, 60, (err, data) => {});
+        redis.expire(signalName, 60, (err, redisData) => {});
       }
 
       //
@@ -99,7 +108,7 @@ lib.feed = function(req, res, params, splats, query) {
       //
 
       // This is the blocking call to BRPOP
-      return clientBlocking.brpop(riverName, 45, function(err, data) {
+      return clientBlocking.brpop(riverName, 45, function(err, redisData) {
 
         // -----------------------------------------------------------------------------------------------------
         // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
@@ -110,22 +119,40 @@ lib.feed = function(req, res, params, splats, query) {
 
         // Was there an error, or did we timeout?
         if (err)   { return sg._500(req, res, err); }
-        if (!data) {
+        if (!redisData) {
           return again(100); /*timeout*/
         }
 
-        // We didnt fail, or timeout, so we got some data... Send it to the client; data === [ riverName, data_from_other ]
-        var   [ redisListName, payload ] = data;
+        // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
+        var   [ redisListName, body ] = redisData;
 
         if (all.expectJson || all.json) {
-          payload = sg.safeJSONParseQuiet(payload) || payload;
+          body = sg.safeJSONParseQuiet(body) || body;
         }
 
-        const result = { [_.last(redisListName.split(':'))] : payload };
+        return sg.__run3([function(next, enext, enag, ewarn) {
+          if (_.isString(body)) { return next(); }
 
-        // But first, we will remove our id from Redis, so others are not confused.
-        redis.srem(signalName, riverName, (err, sremData) => {
-          return sg._200(req, res, result);
+          body = accumulateResultFromBody({}, body, dataTypes);
+          return next();
+
+        }, function(next, enext, enag, ewarn) {
+          if (!asTimeSeries || _.isString(body)) { return next(); }
+
+          return toTimeSeries({telemetry:body}, function(err, ts) {
+            body.timeSeriesMap = ts.timeSeriesMap;
+            delete body.items;
+            return next();
+          });
+
+        }], function() {
+          const result = { [_.last(redisListName.split(':'))] : body };
+
+          // But first, we will give ourselves some time to re-connect, but otherwise
+          // remove our signal
+          return redis.expire(signalName, 15, (err, redisData) => {
+            return sg._200(req, res, result);
+          });
         });
       });
 
@@ -135,8 +162,8 @@ lib.feed = function(req, res, params, splats, query) {
     });
 
     // Write a key on Redis so the other client knows where to send the data
-    redis.sadd(signalName, riverName, (err, data) => {
-      redis.expire(signalName, 60, (err, data) => {
+    redis.sadd(signalName, riverName, (err, redisData) => {
+      redis.expire(signalName, 60, (err, redisData) => {
       });
     });
 
