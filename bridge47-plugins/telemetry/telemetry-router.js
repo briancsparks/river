@@ -5,7 +5,7 @@
  *
  *  Start like this:
  *
- *      sshix $ip "cd ~/dev/river/layer67-plugins/telemetry && pm2 start telemetry-router.js --name telemetry -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
+ *      sshix $ip "cd ~/dev/river/bridge47-plugins/telemetry && pm2 start telemetry-router.js --name telemetry -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
  */
 const sg                      = require('sgsg');
 const _                       = sg._;

@@ -5,7 +5,7 @@
  *
  *  Start like this:
  *
- *      sshix $ip "cd ~/dev/river/layer67-plugins/ingest && pm2 start ingest-router.js --name ingest -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
+ *      sshix $ip "cd ~/dev/river/bridge47-plugins/ingest && pm2 start ingest-router.js --name ingest -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
  */
 const sg                      = require('sgsg');
 const _                       = sg._;

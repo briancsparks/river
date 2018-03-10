@@ -5,7 +5,7 @@
  *
  *  Start like this:
  *
- *      sshix $ip "cd ~/dev/river/layer67-plugins/feed && pm2 start feed-router.js --name feed -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
+ *      sshix $ip "cd ~/dev/river/bridge47-plugins/feed && pm2 start feed-router.js --name feed -- --port=$(cat /tmp/config.json | jq -r '.routerPort')"
  *
  */
 const sg                      = require('sgsg');

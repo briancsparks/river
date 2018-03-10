@@ -2,7 +2,7 @@
 
 eval "$(cli-shezargs $@)"
 
-# Start the web tier instance with layer67
+# Start the web tier instance with bridge47
 run-fqdn-web-instance --stack=cluster --fqdn=rriver.mobilewebassist.net --client-certs --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
 

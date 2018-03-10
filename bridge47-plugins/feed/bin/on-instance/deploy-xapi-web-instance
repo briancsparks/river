@@ -7,7 +7,7 @@
 eval "$(cli-shezargs $@)"
 
 # -----------------------------------------------------------------------------------
-# Start an xapi router from the layer67 code.
+# Start an xapi router from the bridge47 code.
 #
 #   Note: This is only required if we have to run our own xapi routing. If we
 #         are running on a stack that has general xapi routing (on the stacks web
@@ -17,7 +17,7 @@ eval "$(cli-shezargs $@)"
 # Get the port we should listen on
 port="$(egrep '#.*CONFIG_JSON' /etc/nginx/sites-enabled/rriver.mobilewebassist.net.conf | sed 's/^[^{[]*//g' | jq -r '.routerPort')"
 
-# Start layer67 xapi server
-cd ~/dev/layer67/layer67-plugins/xapi && pm2 start xapi-router.js --name xapi -- --port=${port}
+# Start bridge47 xapi server
+cd ~/dev/bridge47/bridge47-plugins/xapi && pm2 start xapi-router.js --name xapi -- --port=${port}
 
 

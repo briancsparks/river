@@ -15,5 +15,5 @@ cd ~/dev && git clone https://github.com/briancsparks/river.git
 cd river && npm install --production
 
 # Get the ingest server up and running
-(cd ~/dev/river/layer67-plugins/ingest && pm2 start ingest-router.js --name ingest -- --port=3002 --color=${color} --stack=${stack})
+(cd ~/dev/river/bridge47-plugins/ingest && pm2 start ingest-router.js --name ingest -- --port=3002 --color=${color} --stack=${stack})
 

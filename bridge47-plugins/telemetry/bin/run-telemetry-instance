@@ -10,7 +10,7 @@ if [[ $stack == prod ]]; then
   assumed_acct="pub"
 fi
 
-# Start an app instance with layer67
+# Start an app instance with bridge47
 run-app-instance --color=${color} --stack=${stack} --delay-finishing
 ip="$(cat /tmp/run-instance-result.json | jq -r .Instances[].PrivateIpAddress)"
 instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceId')"
