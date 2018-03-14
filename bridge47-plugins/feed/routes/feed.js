@@ -151,6 +151,7 @@ lib.feed = function(req, res, params, splats, query) {
           // But first, we will give ourselves some time to re-connect, but otherwise
           // remove our signal
           return redis.expire(signalName, 15, (err, redisData) => {
+            console.log(`feed ${body.dataType}`, _.keys(body.timeSeriesMap).join(','));
             return sg._200(req, res, result);
           });
         });
