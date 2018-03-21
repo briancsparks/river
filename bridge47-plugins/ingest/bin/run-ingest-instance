@@ -19,7 +19,7 @@ instance_id="$(cat /tmp/run-instance-result.json | jq -r '.Instances[].InstanceI
 aws-assumed-role "$assumed_acct" ec2 create-tags --resources "$instance_id" --tags "Key=Name,Value=${stack}-ingest-instance"
 
 # Deploy our code onto the new instance
-zoom-run --ip=${ip} --label=ingest --script="${scripts_dir}/on-instance/deploy-ingest-instance" --color=${color} --stack=${stack}
+zoom-run --ip=${ip} --label=ingest --project=ntl --script="${scripts_dir}/on-instance/deploy-ingest-instance" --color=${color} --stack=${stack}
 
 run-final-app-instance-start-tasks --ip=${ip}
 
