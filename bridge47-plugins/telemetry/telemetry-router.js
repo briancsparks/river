@@ -25,8 +25,10 @@ const deref                   = sg.deref;
 const unhandled               = unhandledRoutes.unhandled;
 const color                   = ARGV.color;
 const stack                   = ARGV.stack;
+const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
+const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
 
-var   routeHandlers           = require('./routes/download');
+var   routeHandlers           = lowerKeys(require('./routes/download'));
 
 const packageName             = 'ntl';
 
@@ -109,4 +111,11 @@ const main = function() {
 
 
 main();
+
+
+function lowerKeys(obj) {
+  return sg.reduce(obj, {}, (m, v, k) => {
+    return sg.kv(m, k.toLowerCase(), v);
+  })
+}
 
