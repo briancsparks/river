@@ -69,11 +69,11 @@ lib.download = function(req, res, params, splats, query) {
  *
  * To receive the result:
  *
- *    for ((;;)); do sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/feed?clientId=asdf&watch=bsdf&expectJson=1' | jq '.'; sleep 0.5; echo '--'; done
+ *    for ((;;)); do sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/feed?clientId=asdf&watch=bsdf&expectJson=1" | jq '.'; sleep 0.5; echo '--'; done
  *
  * To send the request that causes this function to push data from s3
  *
- *    sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/download2?sessionId=A00CIOMLvczYMoUcdf0Vhy6SDuzlvwgWlXsqiu70vIOVttuC10gx0SojgN8faUHC-20180430160338402&dataType=telemetry&destKey=asdf&requestId=foobar&limit=2'
+ *    sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/download2?sessionId=A00CIOMLvczYMoUcdf0Vhy6SDuzlvwgWlXsqiu70vIOVttuC10gx0SojgN8faUHC-20180430160338402&dataType=telemetry&destKey=asdf&requestId=foobar&limit=2"
  *
  */
 lib.download2 = function(req, res, matchParams, splats, query) {
@@ -101,11 +101,11 @@ lib.download2 = function(req, res, matchParams, splats, query) {
  *
  * To receive the result:
  *
- *    for ((;;)); do sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/feed?clientId=asdf&watch=bsdf&expectJson=1' | jq '.'; sleep 0.5; echo '--'; done
+ *    for ((;;)); do sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/feed?clientId=asdf&watch=bsdf&expectJson=1" | jq '.'; sleep 0.5; echo '--'; done
  *
  * To send some data:
  *
- *    sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/queryClients?destKey=asdf&requestId=foobar&limit=2'
+ *    sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/queryClients?destKey=asdf&requestId=foobar&limit=2"
  *
  */
 lib.queryClients = function(req, res, params, splats, query) {
@@ -128,11 +128,11 @@ lib.queryClients = function(req, res, params, splats, query) {
  *
  * To receive the result:
  *
- *    for ((;;)); do sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/feed?clientId=asdf&watch=bsdf&expectJson=1' | jq '.'; sleep 0.5; echo '--'; done
+ *    for ((;;)); do sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/feed?clientId=asdf&watch=bsdf&expectJson=1" | jq '.'; sleep 0.5; echo '--'; done
  *
  * To send some data:
  *
- *    sacurl -sS 'https://b47console.mobilewebassist.net/ntl/xapi/v1/teal/querySessions?destKey=asdf&requestId=foobar&limit=2'
+ *    sacurl -sS "https://b47console.mobilewebassist.net/ntl/xapi/v1/${RIVER_COLOR}/querySessions?destKey=asdf&requestId=foobar&limit=2"
  *
  */
 lib.querySessions = function(req, res, params, splats, query) {
