@@ -70,7 +70,7 @@ lib.ingest = function(req, res, params, splats, query) {
           if (!sg.ok(err, destKeys))   { return; }
 
           return sg.__each(destKeys, (destKey) => {
-            return redis.lpush(destKey, s3Params.Body, function(err, receipt) {
+            return redis.lpush(destKey, JSON.stringify([{}, s3Params.Body]), function(err, receipt) {
               //console.log('LPUSH ', signalName, destKey, err, receipt);
               console.log(msg, 'LPUSH ', signalName, destKey);
             });

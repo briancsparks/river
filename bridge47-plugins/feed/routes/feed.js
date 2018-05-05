@@ -65,18 +65,18 @@ lib.feed = function(req, res, params, splats, query) {
     //
 
     // Get the clients ID, and the ID of who is being watched.
-    const clientId          = all.clientId;
+    const clientId          = all.clientId      || all.destKey;
     const watchClientId     = all.watchClientId || all.watch;
 
     if (!clientId)          { return errExit('Must provide your clientId', 400); }
-    if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
+//    if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
 
     const dataTypeStr        = argvGet(all, 'data-types,data-type,type');
     const dataTypes          = dataTypeStr ? sg.keyMirror(dataTypeStr) : null;
     const asTimeSeries       = argvGet(all, 'as-time-series,timeseries');
 
     // The Redis keys are generated from the client IDs
-    const signalName   = `river:feedsignal:${watchClientId}`;
+    const signalName   = watchClientId ? `river:feedsignal:${watchClientId}` : null;
     const riverName    = `river:feed:${clientId}`;
 
     // We must get a duplicate of the redis client object, because we are about to block.
@@ -98,7 +98,7 @@ lib.feed = function(req, res, params, splats, query) {
       if (elapsed > 1000 * 60 * 5) { return last(); }
 
       // On the 2nd, and futher times through the loop, dont let the other timer expire
-      if (count > 1) {
+      if (signalName && count > 1) {
         //console.log('Saving '+signalName+' from timeout');
         redis.expire(signalName, 60, (err, redisData) => {});
       }
@@ -124,11 +124,9 @@ lib.feed = function(req, res, params, splats, query) {
         }
 
         // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
-        var   [ redisListName, body ] = redisData;
-
-        if (all.expectJson || all.json) {
-          body = sg.safeJSONParseQuiet(body) || body;
-        }
+        const [ redisListName, redisPayload ] = redisData;
+        const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
+        var   [ optionsForResponse, body ]    = payloadObject;
 
         return sg.__run3([function(next, enext, enag, ewarn) {
           if (_.isString(body)) { return next(); }
@@ -137,7 +135,12 @@ lib.feed = function(req, res, params, splats, query) {
           return next();
 
         }, function(next, enext, enag, ewarn) {
-          if (!asTimeSeries || _.isString(body)) { return next(); }
+          if (!asTimeSeries)      { return next(); }
+          if (_.isString(body))   { return next(); }
+
+          if (optionsForResponse.dataType !== 'telemetry') {
+            return next();
+          }
 
           return toTimeSeries({telemetry:body}, function(err, ts) {
             body.timeSeriesMap = ts.timeSeriesMap;
@@ -146,13 +149,22 @@ lib.feed = function(req, res, params, splats, query) {
           });
 
         }], function() {
+          if (_.isString(body)) {
+            body = sg.safeJSONStringQuiet(body) || body;
+          }
+
           const result = { [_.last(redisListName.split(':'))] : body };
 
           // But first, we will give ourselves some time to re-connect, but otherwise
           // remove our signal
-          return redis.expire(signalName, 15, (err, redisData) => {
-            return sg._200(req, res, result);
-          });
+          if (signalName) {
+            return redis.expire(signalName, 15, (err, redisData) => {
+              return sg._200(req, res, result);
+            });
+          }
+
+          /* otherwise */
+          return sg._200(req, res, result);
         });
       });
 
@@ -162,10 +174,12 @@ lib.feed = function(req, res, params, splats, query) {
     });
 
     // Write a key on Redis so the other client knows where to send the data
-    redis.sadd(signalName, riverName, (err, redisData) => {
-      redis.expire(signalName, 60, (err, redisData) => {
+    if (signalName) {
+      redis.sadd(signalName, riverName, (err, redisData) => {
+        redis.expire(signalName, 60, (err, redisData) => {
+        });
       });
-    });
+    }
 
     // Error handler
     req.on('close', () => {
