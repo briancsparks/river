@@ -38,6 +38,7 @@ const setOnn                  = sg.setOnn;
 const deref                   = sg.deref;
 const toTimeSeries            = getTelemetryLib.toTimeSeries;
 const accumulateResultFromBody= getTelemetryLib.accumulateResultFromBody;
+const feedVerbosity           = argvGet(ARGV, 'feed-verbosity,vfeed');
 const redisPort               = argvGet(ARGV, 'redis-port')             || 6379;
 const redisHost               = argvGet(ARGV, 'redis-host')             || 'redis';
 
@@ -72,8 +73,8 @@ lib.feed = function(req, res, params, splats, query) {
 //    if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
 
     const dataTypeStr        = argvGet(all, 'data-types,data-type,type');
-    const dataTypes          = dataTypeStr ? sg.keyMirror(dataTypeStr) : null;
-    const asTimeSeries       = argvGet(all, 'as-time-series,timeseries');
+    const dataTypesOrig      = dataTypeStr ? sg.keyMirror(dataTypeStr) : null;
+    const asTimeSeriesOrig   = argvGet(all, 'as-time-series,timeseries');
 
     // The Redis keys are generated from the client IDs
     const signalName   = watchClientId ? `river:feedsignal:${watchClientId}` : null;
@@ -128,23 +129,35 @@ lib.feed = function(req, res, params, splats, query) {
         const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
         var   [ optionsForResponse, body ]    = payloadObject;
 
+        const dataTypes     = optionsForResponse.dataTypes    || dataTypesOrig;
+        const asTimeSeries  = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+
         return sg.__run3([function(next, enext, enag, ewarn) {
-          if (_.isString(body)) { return next(); }
+          if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
 
           body = accumulateResultFromBody({}, body, dataTypes);
           return next();
 
         }, function(next, enext, enag, ewarn) {
-          if (!asTimeSeries)      { return next(); }
-          if (_.isString(body))   { return next(); }
+          if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
+          if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
 
-          if (optionsForResponse.dataType !== 'telemetry') {
+          const itemsKey = findKeyForItems(body);
+          const itemsParentKey = _.initial(itemsKey.split('.')).join('.');
+          const items           = deref(body, itemsKey) || {};
+          const parent          = deref(body, itemsParentKey);
+
+          //console.log({itemsKey, itemsParentKey}, {body});
+          if (parent.dataType !== 'telemetry') {
+            logfeed(`Payload is not telemetry (${parent.dataType || 'undefined'}), skipping conversion to TimeSeries`);
             return next();
           }
 
-          return toTimeSeries({telemetry:body}, function(err, ts) {
-            body.timeSeriesMap = ts.timeSeriesMap;
-            delete body.items;
+          logfeed(`Converting to TimeSeries`);
+          return toTimeSeries({telemetry:parent}, function(err, ts) {
+            parent.timeSeriesMap = ts.timeSeriesMap;
+            delete parent.items;
+
             return next();
           });
 
@@ -217,5 +230,26 @@ lib.feed = function(req, res, params, splats, query) {
 _.each(lib, (value, key) => {
   exports[key] = value;
 });
+
+
+function logfeed() {
+  if (!feedVerbosity) { return; }
+  console.log.apply(console.log, arguments);
+}
+
+function findKeyForItems(obj) {
+  if (sg.isnt(obj)) { return obj; }
+
+  if (_.isArray(obj.items)) {
+    return 'items';
+  }
+
+  const firstKey  = sg.firstKey(obj);
+  const subKeys   = findKeyForItems(obj[firstKey]);
+
+  if (!subKeys) { return; }
+
+  return _.compact([firstKey, subKeys]).join('.');
+}
 
 
