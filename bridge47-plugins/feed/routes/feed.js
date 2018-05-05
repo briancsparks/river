@@ -129,10 +129,29 @@ lib.feed = function(req, res, params, splats, query) {
         const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
         var   [ optionsForResponse, body ]    = payloadObject;
 
-        const dataTypes     = optionsForResponse.dataTypes    || dataTypesOrig;
-        const asTimeSeries  = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+        const dataTypes       = optionsForResponse.dataTypes    || dataTypesOrig;
+        const asTimeSeries    = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+
+        // `body` is not the real payload, it has been wrapped by names. Find the real body
+        // (`parent` will be the parent of the `items` list
+        const itemsKey        = findKeyForItems(body);
+        const itemsParentKey  = _.initial(itemsKey.split('.')).join('.');
+        const items           = deref(body, itemsKey) || {};
+        const parent          = deref(body, itemsParentKey);
 
         return sg.__run3([function(next, enext, enag, ewarn) {
+
+          // Just skip the data altogether, if the request enumerates the types they want,
+          // and this isnt one of those types
+          if (dataTypes) {
+            if (parent.dataType && !dataTypes[parent.dataType]) {
+              logfeed(`Payload is ${parent.dataType}, but we want ${_.keys(dataTypes).join(', ')}. Skipping.`);
+              return sg._200(req, res, {});
+            }
+          }
+
+          return next();
+        }, function(next, enext, enag, ewarn) {
           if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
 
           body = accumulateResultFromBody({}, body, dataTypes);
@@ -141,11 +160,6 @@ lib.feed = function(req, res, params, splats, query) {
         }, function(next, enext, enag, ewarn) {
           if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
           if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
-
-          const itemsKey = findKeyForItems(body);
-          const itemsParentKey = _.initial(itemsKey.split('.')).join('.');
-          const items           = deref(body, itemsKey) || {};
-          const parent          = deref(body, itemsParentKey);
 
           //console.log({itemsKey, itemsParentKey}, {body});
           if (parent.dataType !== 'telemetry') {
