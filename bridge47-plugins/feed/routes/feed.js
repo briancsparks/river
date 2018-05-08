@@ -69,6 +69,8 @@ lib.feed = function(req, res, params, splats, query) {
     const clientId          = all.clientId      || all.destKey;
     const watchClientId     = all.watchClientId || all.watch;
 
+    const feedNum           = all.count || 2;
+
     if (!clientId)          { return errExit('Must provide your clientId', 400); }
 //    if (!watchClientId)     { return errExit('Must provide the watched clientId', 400); }
 
@@ -80,36 +82,21 @@ lib.feed = function(req, res, params, splats, query) {
     const signalName   = watchClientId ? `river:feedsignal:${watchClientId}` : null;
     const riverName    = `river:feed:${clientId}`;
 
-    // We must get a duplicate of the redis client object, because we are about to block.
-    const clientBlocking   = redis.duplicate();
+    return sg.__run3([function(next, enext, enag, ewarn) {
+      if (feedNum !== 1) { return next(); }
 
-    const start = _.now();
+      redis.del(riverName, (err, result) => {
+        console.log(`emptied river`, err, result);
+        return next();
+      });
+    }], function() {
+      // We must get a duplicate of the redis client object, because we are about to block.
+      const clientBlocking   = redis.duplicate();
 
-    // If we time-out, we come back here and go around again.
-    sg.until(function(again, last, count, elapsed) {
+      const start = _.now();
 
-      // -----------------------------------------------------------------------------------------------------
-      // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
-      //
-
-      // Make sure the client request is still valid
-      if (clientRequestIsInvalid)         { return exitForBrokenRequest(); }
-
-      // But only try for so long
-      if (elapsed > 1000 * 60 * 5) { return last(); }
-
-      // On the 2nd, and futher times through the loop, dont let the other timer expire
-      if (signalName && count > 1) {
-        //console.log('Saving '+signalName+' from timeout');
-        redis.expire(signalName, 60, (err, redisData) => {});
-      }
-
-      //
-      // Here is the big wrinkle
-      //
-
-      // This is the blocking call to BRPOP
-      return clientBlocking.brpop(riverName, 45, function(err, redisData) {
+      // If we time-out, we come back here and go around again.
+      sg.until(function(again, last, count, elapsed) {
 
         // -----------------------------------------------------------------------------------------------------
         // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
@@ -118,119 +105,143 @@ lib.feed = function(req, res, params, splats, query) {
         // Make sure the client request is still valid
         if (clientRequestIsInvalid)         { return exitForBrokenRequest(); }
 
-        // Was there an error, or did we timeout?
-        if (err)   { return sg._500(req, res, err); }
-        if (!redisData) {
-          return again(100); /*timeout*/
+        // But only try for so long
+        if (elapsed > 1000 * 60 * 5) { return last(); }
+
+        // On the 2nd, and futher times through the loop, dont let the other timer expire
+        if (signalName && count > 1) {
+          //console.log('Saving '+signalName+' from timeout');
+          redis.expire(signalName, 60, (err, redisData) => {});
         }
 
-        // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
-        const [ redisListName, redisPayload ] = redisData;
-        const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
-        var   [ optionsForResponse, body ]    = payloadObject;
+        //
+        // Here is the big wrinkle
+        //
 
-        const dataTypes       = optionsForResponse.dataTypes    || dataTypesOrig;
-        const asTimeSeries    = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+        // This is the blocking call to BRPOP
+        return clientBlocking.brpop(riverName, 45, function(err, redisData) {
 
-        // `body` is not the real payload, it has been wrapped by names. Find the real body
-        // (`parent` will be the parent of the `items` list
-        const itemsKey        = findKeyForItems(body);
-        const itemsParentKey  = _.initial(itemsKey.split('.')).join('.');
-        const items           = deref(body, itemsKey) || {};
-        const parent          = deref(body, itemsParentKey);
+          // -----------------------------------------------------------------------------------------------------
+          // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
+          //
 
-        return sg.__run3([function(next, enext, enag, ewarn) {
+          // Make sure the client request is still valid
+          if (clientRequestIsInvalid)         { return exitForBrokenRequest(); }
 
-          // Just skip the data altogether, if the request enumerates the types they want,
-          // and this isnt one of those types
-          if (dataTypes) {
-            if (parent.dataType && !dataTypes[parent.dataType]) {
-              logfeed(`Payload is ${parent.dataType}, but we want ${_.keys(dataTypes).join(', ')}. Skipping.`);
-              return sg._200(req, res, {});
+          // Was there an error, or did we timeout?
+          if (err)   { return sg._500(req, res, err); }
+          if (!redisData) {
+            return again(100); /*timeout*/
+          }
+
+          // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
+          const [ redisListName, redisPayload ] = redisData;
+          const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
+          var   [ optionsForResponse, body ]    = payloadObject;
+
+          const dataTypes       = optionsForResponse.dataTypes    || dataTypesOrig;
+          const asTimeSeries    = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+
+          // `body` is not the real payload, it has been wrapped by names. Find the real body
+          // (`parent` will be the parent of the `items` list
+          const itemsKey        = findKeyForItems(body);
+          const itemsParentKey  = _.initial(itemsKey.split('.')).join('.');
+          const items           = deref(body, itemsKey) || {};
+          const parent          = deref(body, itemsParentKey);
+
+          return sg.__run3([function(next, enext, enag, ewarn) {
+
+            // Just skip the data altogether, if the request enumerates the types they want,
+            // and this isnt one of those types
+            if (dataTypes) {
+              if (parent.dataType && !dataTypes[parent.dataType]) {
+                logfeed(`Payload is ${parent.dataType}, but we want ${_.keys(dataTypes).join(', ')}. Skipping.`);
+                return sg._200(req, res, {});
+              }
             }
-          }
-
-          return next();
-        }, function(next, enext, enag, ewarn) {
-          if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
-
-          body = accumulateResultFromBody({}, body, dataTypes);
-          return next();
-
-        }, function(next, enext, enag, ewarn) {
-          if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
-          if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
-
-          //console.log({itemsKey, itemsParentKey}, {body});
-          if (parent.dataType !== 'telemetry') {
-            logfeed(`Payload is not telemetry (${parent.dataType || 'undefined'}), skipping conversion to TimeSeries`);
-            return next();
-          }
-
-          logfeed(`Converting to TimeSeries`);
-          return toTimeSeries({telemetry:parent}, function(err, ts) {
-            parent.timeSeriesMap = ts.timeSeriesMap;
-            delete parent.items;
 
             return next();
-          });
+          }, function(next, enext, enag, ewarn) {
+            if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
 
-        }], function() {
-          if (_.isString(body)) {
-            body = sg.safeJSONStringQuiet(body) || body;
-          }
+            body = accumulateResultFromBody({}, body, dataTypes);
+            return next();
 
-          const result = { [_.last(redisListName.split(':'))] : body };
+          }, function(next, enext, enag, ewarn) {
+            if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
+            if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
 
-          // But first, we will give ourselves some time to re-connect, but otherwise
-          // remove our signal
-          if (signalName) {
-            return redis.expire(signalName, 15, (err, redisData) => {
-              return sg._200(req, res, result);
+            //console.log({itemsKey, itemsParentKey}, {body});
+            if (parent.dataType !== 'telemetry') {
+              logfeed(`Payload is not telemetry (${parent.dataType || 'undefined'}), skipping conversion to TimeSeries`);
+              return next();
+            }
+
+            logfeed(`Converting to TimeSeries`);
+            return toTimeSeries({telemetry:parent}, function(err, ts) {
+              parent.timeSeriesMap = ts.timeSeriesMap;
+              delete parent.items;
+
+              return next();
             });
-          }
 
-          /* otherwise */
-          return sg._200(req, res, result);
+          }], function() {
+            if (_.isString(body)) {
+              body = sg.safeJSONStringQuiet(body) || body;
+            }
+
+            const result = { [_.last(redisListName.split(':'))] : body };
+
+            // But first, we will give ourselves some time to re-connect, but otherwise
+            // remove our signal
+            if (signalName) {
+              return redis.expire(signalName, 15, (err, redisData) => {
+                return sg._200(req, res, result);
+              });
+            }
+
+            /* otherwise */
+            return sg._200(req, res, result);
+          });
         });
+
+      }, function done() {
+        // We only get here when the sg.until:elapsed is > 5min
+        return sg._200(req, res, {timeout: (_.now() - start)});
       });
 
-    }, function done() {
-      // We only get here when the sg.until:elapsed is > 5min
-      return sg._200(req, res, {timeout: (_.now() - start)});
-    });
-
-    // Write a key on Redis so the other client knows where to send the data
-    if (signalName) {
-      redis.sadd(signalName, riverName, (err, redisData) => {
-        redis.expire(signalName, 60, (err, redisData) => {
+      // Write a key on Redis so the other client knows where to send the data
+      if (signalName) {
+        redis.sadd(signalName, riverName, (err, redisData) => {
+          redis.expire(signalName, 60, (err, redisData) => {
+          });
         });
+      }
+
+      // Error handler
+      req.on('close', () => {
+        clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'close';
+        //console.error('at req-on-close');
       });
-    }
 
-    // Error handler
-    req.on('close', () => {
-      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'close';
-      //console.error('at req-on-close');
+      req.on('aborted', () => {
+        clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'aborted';
+        //console.error('at req-on-aborted');
+      });
+
+      req.on('end', () => {
+        clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'end';
+        //console.log('request normal end');
+      });
+
+      function exitForBrokenRequest() {
+        console.error('Exiting after broken client request: '+clientRequestIsInvalid);
+        return sg._400(req, res, {clientReq: clientRequestIsInvalid});
+      }
+
+      // ----------------------------- No callbacks, or responding on req/res --------------------------
+      // -----------------------------------------------------------------------------------------------
     });
-
-    req.on('aborted', () => {
-      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'aborted';
-      //console.error('at req-on-aborted');
-    });
-
-    req.on('end', () => {
-      clientRequestIsInvalid = (clientRequestIsInvalid || '') + 'end';
-      //console.log('request normal end');
-    });
-
-    function exitForBrokenRequest() {
-      console.error('Exiting after broken client request: '+clientRequestIsInvalid);
-      return sg._400(req, res, {clientReq: clientRequestIsInvalid});
-    }
-
-    // ----------------------------- No callbacks, or responding on req/res --------------------------
-    // -----------------------------------------------------------------------------------------------
 
   });
 
