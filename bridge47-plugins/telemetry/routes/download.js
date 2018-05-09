@@ -65,6 +65,52 @@ lib.download = function(req, res, params, splats, query) {
 };
 
 /**
+ *  Gets the S3 keys for the sessionId.
+ */
+lib.getS3Keys = function(req, res, params, splats, query) {
+  const url                 = urlLib.parse(req.url, true);
+
+  return sg.getBody(req, function(err) {
+
+    const all       = sg._extend(req.bodyJson || {}, url.query || {}, params ||{});
+    const sessionId = all.sessionId || all.session;
+    const clientId  = all.clientId  || all.client;
+    const Bucket    = telemetryLib.bucketName();
+    const Prefix    = telemetryLib.s3Key(clientId, sessionId);
+
+    return s3.listObjectsV2({Bucket, Prefix}, function(err, data) {
+      if (!sg.ok(err, data))    { return sg._404(req, res); }
+
+      return sg._200(req, res, data);
+    });
+  });
+};
+
+/**
+ *  Get an item from S3.
+ */
+lib.getS3 = function(req, res, params, splats, query) {
+  const url                 = urlLib.parse(req.url, true);
+
+  return sg.getBody(req, function(err) {
+
+    const all       = sg._extend(req.bodyJson || {}, url.query || {}, params ||{});
+    const Key       = all.key;
+    const Bucket    = telemetryLib.bucketName();
+
+    return s3.getObject({Bucket, Key}, function(err, s3file) {
+      if (!sg.ok(err, s3file))    { return sg._404(req, res); }
+
+      if (s3file.ContentType.match(/[/]json/)) {
+        return sg._200(req, res, sg.safeJSONParseQuiet(s3file.Body));
+      }
+
+      return sg._400(req, res);
+    });
+  });
+};
+
+/**
  *  Fetch telemetry from one session
  *
  * To receive the result:

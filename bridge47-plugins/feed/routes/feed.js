@@ -119,7 +119,7 @@ lib.feed = function(req, res, params, splats, query) {
         //
 
         // This is the blocking call to BRPOP
-        return clientBlocking.brpop(riverName, 45, function(err, redisData) {
+        return clientBlocking.brpop(riverName, 45, function(err, redisData_) {
 
           // -----------------------------------------------------------------------------------------------------
           // !!!!!!!!!!!!! Handle when the client disconnects !!!!!!!!!!!!!!!!
@@ -130,81 +130,112 @@ lib.feed = function(req, res, params, splats, query) {
 
           // Was there an error, or did we timeout?
           if (err)   { return sg._500(req, res, err); }
-          if (!redisData) {
+          if (!redisData_) {
             return again(100); /*timeout*/
           }
 
-          // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
-          const [ redisListName, redisPayload ] = redisData;
-          const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
-          var   [ optionsForResponse, body ]    = payloadObject;
+          var redisData = redisData_;
 
-          const dataTypes       = optionsForResponse.dataTypes    || dataTypesOrig;
-          const asTimeSeries    = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
 
-          // `body` is not the real payload, it has been wrapped by names. Find the real body
-          // (`parent` will be the parent of the `items` list
-          const itemsPath       = findKeyForItems(body).split('.');
-          const itemsKey        = itemsPath.join('.');
-          itemsPath.pop();
+          var result = {};
 
-          const itemsParentKey  = itemsPath.join('.');
-          const items           = deref(body, itemsKey) || {};
-          const parent          = itemsParentKey.length > 0 ? deref(body, itemsParentKey) : body;
+          return sg.until(function(again, last, count, elapsed) {
 
-          return sg.__run3([function(next, enext, enag, ewarn) {
+            // We didnt fail, or timeout, so we got some data... Send it to the client; redisData === [ riverName, data_from_other ]
+            const [ redisListName, redisPayload ] = redisData;
+            const payloadObject                   = sg.safeJSONParseQuiet(redisPayload);
+            var   [ optionsForResponse, body ]    = payloadObject;
 
-            // Just skip the data altogether, if the request enumerates the types they want,
-            // and this isnt one of those types
-            if (dataTypes) {
-              if (parent.dataType && !dataTypes[parent.dataType]) {
-                logfeed(`Payload is ${parent.dataType}, but we want ${_.keys(dataTypes).join(', ')}. Skipping.`);
-                return sg._200(req, res, {});
+            const dataTypes       = optionsForResponse.dataTypes    || dataTypesOrig;
+            const asTimeSeries    = optionsForResponse.asTimeSeries || asTimeSeriesOrig;
+
+            // `body` is not the real payload, it has been wrapped by names. Find the real body
+            // (`parent` will be the parent of the `items` list)
+            const itemsPath       = findKeyForItems(body).split('.');
+            const itemsKey        = itemsPath.join('.');
+            itemsPath.pop();
+
+            const itemsParentKey  = itemsPath.join('.');
+            const items           = deref(body, itemsKey) || {};
+            const parent          = itemsParentKey.length > 0 ? deref(body, itemsParentKey) : body;
+
+            return sg.__run3([function(next, enext, enag, ewarn) {
+
+              // Just skip the data altogether, if the request enumerates the types they want,
+              // and this isnt one of those types
+              if (dataTypes) {
+                if (parent.dataType && !dataTypes[parent.dataType]) {
+                  logfeed(`Payload is ${parent.dataType}, but we want ${_.keys(dataTypes).join(', ')}. Skipping.`);
+                  return sg._200(req, res, {});
+                }
               }
-            }
-
-            return next();
-          }, function(next, enext, enag, ewarn) {
-            if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
-
-            body = accumulateResultFromBody({}, body, dataTypes);
-            return next();
-
-          }, function(next, enext, enag, ewarn) {
-            if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
-            if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
-
-            //console.log({itemsKey, itemsParentKey}, {body});
-            if (parent.dataType !== 'telemetry') {
-              logfeed(`Payload is not telemetry (${parent.dataType || 'undefined'}), skipping conversion to TimeSeries`);
-              return next();
-            }
-
-            logfeed(`Converting to TimeSeries`);
-            return toTimeSeries({telemetry:parent}, function(err, ts) {
-              parent.timeSeriesMap = ts.timeSeriesMap;
-              delete parent.items;
 
               return next();
-            });
+            }, function(next, enext, enag, ewarn) {
+              if (_.isString(body)) { logfeed(`Body starts as a string`); return next(); }
 
-          }], function() {
-            if (_.isString(body)) {
-              body = sg.safeJSONStringQuiet(body) || body;
-            }
+              body = accumulateResultFromBody({}, body, dataTypes);
+              return next();
 
-            const result = { [_.last(redisListName.split(':'))] : body };
+            }, function(next, enext, enag, ewarn) {
+              if (!asTimeSeries)      { logfeed(`Conversion to TimeSeries not requested`); return next(); }
+              if (_.isString(body))   { logfeed(`Body is a string, skipping conversion to TimeSeries`); return next(); }
 
-            // But first, we will give ourselves some time to re-connect, but otherwise
-            // remove our signal
-            if (signalName) {
-              return redis.expire(signalName, 15, (err, redisData) => {
-                return sg._200(req, res, result);
+              //console.log({itemsKey, itemsParentKey}, {body});
+              if (parent.dataType !== 'telemetry') {
+                logfeed(`Payload is not telemetry (${parent.dataType || 'undefined'}), skipping conversion to TimeSeries`);
+                return next();
+              }
+
+              logfeed(`Converting to TimeSeries`);
+              return toTimeSeries({telemetry:parent}, function(err, ts) {
+                parent.timeSeriesMap = ts.timeSeriesMap;
+                delete parent.items;
+
+                return next();
               });
-            }
 
-            /* otherwise */
-            return sg._200(req, res, result);
+            }], function() {
+              if (_.isString(body)) {
+                body = sg.safeJSONStringQuiet(body) || body;
+              }
+
+              // But first, we will give ourselves some time to re-connect, but otherwise
+              // remove our signal
+              if (signalName) {
+                return redis.expire(signalName, 15, (err, redisData) => {
+                  return sg._200(req, res, body);
+                });
+              }
+
+              // We cannot do the more-than-one trick if we have a signalName
+              if (!_.isArray(result)) {
+                result = [body];
+              } else {
+                result.push(body);
+              }
+
+              if (result.length >= 5) { return last(); }
+
+              /* othrwise, see if there are more items in the redis list */
+              return redis.llen(riverName, (err, data) => {
+                console.log(`llend redis ${riverName}:`, {err, data});
+                if (err)          { return last(); }
+                if (data === 0)   { return last(); }
+
+                /* otherwise, there are entries in the list... get them */
+                return redis.rpop(riverName, (err, redisData_) => {
+                  if (!sg.ok(err, redisData_)) { return last(); }
+
+                  // This read does not put the client key into the result
+                  redisData = [redisListName, redisData_];
+                  return again();
+                });
+              });
+
+            });
+          }, function done() {
+                      return sg._200(req, res, result);
           });
         });
 
