@@ -144,10 +144,13 @@ lib.feed = function(req, res, params, splats, query) {
 
           // `body` is not the real payload, it has been wrapped by names. Find the real body
           // (`parent` will be the parent of the `items` list
-          const itemsKey        = findKeyForItems(body);
-          const itemsParentKey  = _.initial(itemsKey.split('.')).join('.');
+          const itemsPath       = findKeyForItems(body).split('.');
+          const itemsKey        = itemsPath.join('.');
+          itemsPath.pop();
+
+          const itemsParentKey  = itemsPath.join('.');
           const items           = deref(body, itemsKey) || {};
-          const parent          = deref(body, itemsParentKey);
+          const parent          = itemsParentKey.length > 0 ? deref(body, itemsParentKey) : body;
 
           return sg.__run3([function(next, enext, enag, ewarn) {
 
@@ -267,6 +270,10 @@ function findKeyForItems(obj) {
 
   if (_.isArray(obj.items)) {
     return 'items';
+  }
+
+  if (_.isArray(obj.payload)) {
+    return 'payload';
   }
 
   const firstKey  = sg.firstKey(obj);
