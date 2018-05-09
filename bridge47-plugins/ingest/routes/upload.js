@@ -70,7 +70,12 @@ lib.ingest = function(req, res, params, splats, query) {
           if (!sg.ok(err, destKeys))   { return; }
 
           return sg.__each(destKeys, (destKey) => {
-            return redis.lpush(destKey, JSON.stringify([{}, s3Params.Body]), function(err, receipt) {
+            var   s3params_body   = JSON.parse(s3Params.Body);
+
+            s3params_body.items   = s3params_body.items || sg.extract(s3params_body, 'payload');
+            const responseParams  = {dataType:'telemetry'};
+            const responseBody    = {sessionInfoRequestId: { dataPoints: s3params_body}};
+            return redis.lpush(destKey, JSON.stringify([responseParams, responseBody]), function(err, receipt) {
               //console.log('LPUSH ', signalName, destKey, err, receipt);
               console.log(msg, 'LPUSH ', signalName, destKey);
             });
