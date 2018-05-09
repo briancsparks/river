@@ -1,6 +1,6 @@
 {
   "name": "bridge47-river",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Tools to debug a river of data.",
   "main": "bridge47-river.js",
   "scripts": {
